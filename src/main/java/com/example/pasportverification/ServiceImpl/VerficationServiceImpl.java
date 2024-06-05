@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
@@ -13,7 +14,10 @@ import org.springframework.web.client.RestTemplate;
 
 import com.example.pasportverification.Entity.Verification;
 import com.example.pasportverification.Entity.pasportdto;
-
+import com.example.pasportverification.Logentities.ApiLog;
+import com.example.pasportverification.Logentities.ApiLogentity;
+import com.example.pasportverification.Repository.ApiLogRepository;
+import com.example.pasportverification.Repository.ApiLogRepository1;
 import com.example.pasportverification.Service.VerificationService;
 import com.example.pasportverification.exception.EmptyDobException;
 import com.example.pasportverification.exception.EmptyNameException;
@@ -30,6 +34,10 @@ import com.example.pasportverification.exception1.Filenumberrequiredexception;
 import com.example.pasportverification.exception1.InvalidDOBexception;
 import com.example.pasportverification.exception1.filenotfoundexception;
 import com.example.pasportverification.utils.PropertiesConfig;
+import com.google.gson.Gson;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 @Service
 public class VerficationServiceImpl implements VerificationService {
@@ -37,6 +45,12 @@ public class VerficationServiceImpl implements VerificationService {
 	private final RestTemplate restTemplate;
 
 	private final String apiKey;
+
+	@Autowired
+	ApiLogRepository apiLogRepository;
+
+	@Autowired
+	ApiLogRepository1 apiLogRepository1;
 
 	private static final Logger logger = LoggerFactory.getLogger(VerficationServiceImpl.class);
 
@@ -50,9 +64,13 @@ public class VerficationServiceImpl implements VerificationService {
 	}
 
 	@Override
-	public String getVerify(Verification dto) {
+	public String getVerify(Verification dto, HttpServletRequest request, HttpServletResponse response) {
 
 		String APIURL = config.getVerificationApiURl();
+
+		String requestUrl = request.getRequestURI().toString();
+
+		int statusCode = response.getStatus();
 
 		dto.getFileNumber();
 		dto.getDob();
@@ -60,17 +78,26 @@ public class VerficationServiceImpl implements VerificationService {
 		HttpHeaders headers = new HttpHeaders();
 		headers.setContentType(MediaType.APPLICATION_JSON);
 		headers.set("Authorization", apiKey); // Include API key directly without "Bearer" prefix
+		Gson gson = new Gson();
 
-		HttpEntity<String> request = new HttpEntity(dto, headers);
+		String requestBodyJson = gson.toJson(dto);
 
-//		Object response = restTemplate.postForObject(APIURL, request, Object.class);
-//		return response;
+		HttpEntity<String> request1 = new HttpEntity(requestBodyJson, headers);
+
+		ApiLog apiLog = new ApiLog();
+		apiLog.setUrl(requestUrl);
+		apiLog.setRequestBody(requestBodyJson);
 
 		try {
-			String response = restTemplate.postForObject(APIURL, request, String.class);
-			return response;
+			String response1 = restTemplate.postForObject(APIURL, request1, String.class);
+			apiLog.setResponseBody(response1);
+			apiLog.setStatusCode(HttpStatus.OK.value());
+			return response1;
 		} catch (HttpClientErrorException.BadRequest e) {
 			String errorMessage = e.getResponseBodyAsString();
+
+			apiLog.setResponseBody(errorMessage);
+			apiLog.setStatusCode(e.getStatusCode().value());
 			// System.out.println("Error Response: " + errorMessage);
 			logger.error("Error Response: {}", errorMessage);
 			if (errorMessage.contains("fileNumber is not allowed to be empty string")) {
@@ -93,37 +120,57 @@ public class VerficationServiceImpl implements VerificationService {
 				throw e;
 			}
 		} catch (HttpClientErrorException.NotFound e) {
+
 			String errorMessage = e.getResponseBodyAsString();
+
+			apiLog.setResponseBody(errorMessage);
+			apiLog.setStatusCode(e.getStatusCode().value());
 			logger.error("Error Response : {}", errorMessage);
 			if (errorMessage.contains("fileNumber is not found")) {
 				throw new filenumbernotfoundexception("fileNumber is not found");
 			} else {
 				throw e;
 			}
+		} finally {
+			apiLogRepository.save(apiLog);
 		}
 
 	}
 
 	@Override
-	public String getDetails(pasportdto pasportdto) {
+	public String getDetails(pasportdto pasportdto, HttpServletRequest request, HttpServletResponse response) {
 		String APIURL = config.getPportApiURl();
+
+		String requestUrl = request.getRequestURI().toString();
+
+		int statusCode = response.getStatus();
 
 		pasportdto.getFileNumber();
 		pasportdto.getDob();
 		HttpHeaders headers = new HttpHeaders();
 		headers.setContentType(MediaType.APPLICATION_JSON);
-		headers.set("Authorization", apiKey); // Include API key directly without "Bearer" prefix
+		headers.set("Authorization", apiKey);
 
-		HttpEntity<String> request = new HttpEntity(pasportdto, headers);
+		Gson gson = new Gson();
 
-//		String response1 = restTemplate.postForObject(APIURL, request, String.class);
-//		return response1;
+		String requestBodyJson = gson.toJson(pasportdto);
+
+		HttpEntity<String> request1 = new HttpEntity(requestBodyJson, headers);
+
+		ApiLogentity apiLogentity = new ApiLogentity();
+		apiLogentity.setUrl(requestUrl);
+		apiLogentity.setRequestBody(requestBodyJson);
 
 		try {
-			String response1 = restTemplate.postForObject(APIURL, request, String.class);
+			String response1 = restTemplate.postForObject(APIURL, request1, String.class);
+			apiLogentity.setResponseBody(response1);
+			apiLogentity.setStatusCode(HttpStatus.OK.value());
 			return response1;
 		} catch (HttpClientErrorException.BadRequest e) {
 			String errorMessage = e.getResponseBodyAsString();
+
+			apiLogentity.setResponseBody(errorMessage);
+			apiLogentity.setStatusCode(e.getStatusCode().value());
 			logger.error("Error Response:{}", errorMessage);
 
 			if (errorMessage.contains("fileNumber is not allowed to be empty string")) {
@@ -143,12 +190,17 @@ public class VerficationServiceImpl implements VerificationService {
 
 		} catch (HttpClientErrorException.NotFound e) {
 			String errorMessage = e.getResponseBodyAsString();
+			apiLogentity.setResponseBody(errorMessage);
+			apiLogentity.setStatusCode(e.getStatusCode().value());
 			logger.error("Error Response : {}", errorMessage);
 			if (errorMessage.contains("fileNumber is not found")) {
 				throw new filenotfoundexception("fileNumber is not found");
 			} else {
 				throw e;
 			}
+		} finally {
+
+			apiLogRepository1.save(apiLogentity);
 		}
 
 	}
