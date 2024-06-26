@@ -1,6 +1,7 @@
 package com.example.pasportverification.Logentities;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 import org.hibernate.annotations.Type;
 
@@ -74,6 +75,11 @@ public class ApiLog {
 	}
 	
 	
-	
+	public ApiLog() {
+		this.timestamp=LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
+	}
+	public void setResponseBodyAsJson(String message) {
+		this.responseBody = "{\"message\": \"" + message.replace("\"", "\\\"") + "\"}";
+	}
 	
 }

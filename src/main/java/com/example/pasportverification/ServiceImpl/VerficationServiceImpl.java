@@ -19,20 +19,6 @@ import com.example.pasportverification.Logentities.ApiLogentity;
 import com.example.pasportverification.Repository.ApiLogRepository;
 import com.example.pasportverification.Repository.ApiLogRepository1;
 import com.example.pasportverification.Service.VerificationService;
-import com.example.pasportverification.exception.EmptyDobException;
-import com.example.pasportverification.exception.EmptyNameException;
-import com.example.pasportverification.exception.EmptyfileNumberrexception;
-import com.example.pasportverification.exception.FilenumberRequiredException;
-import com.example.pasportverification.exception.InvalidDobException;
-import com.example.pasportverification.exception.InvalidFilenumberException;
-import com.example.pasportverification.exception.InvalidNameException;
-import com.example.pasportverification.exception.filenumbernotfoundexception;
-import com.example.pasportverification.exception1.BadRequestException;
-import com.example.pasportverification.exception1.Emptydobexception;
-import com.example.pasportverification.exception1.Emptyfilenumberexception;
-import com.example.pasportverification.exception1.Filenumberrequiredexception;
-import com.example.pasportverification.exception1.InvalidDOBexception;
-import com.example.pasportverification.exception1.filenotfoundexception;
 import com.example.pasportverification.utils.PropertiesConfig;
 import com.google.gson.Gson;
 
@@ -66,142 +52,136 @@ public class VerficationServiceImpl implements VerificationService {
 	@Override
 	public String getVerify(Verification dto, HttpServletRequest request, HttpServletResponse response) {
 
-		String APIURL = config.getVerificationApiURl();
-
-		String requestUrl = request.getRequestURI().toString();
-
-		int statusCode = response.getStatus();
-
-		dto.getFileNumber();
-		dto.getDob();
-		dto.getName();
-		HttpHeaders headers = new HttpHeaders();
-		headers.setContentType(MediaType.APPLICATION_JSON);
-		headers.set("Authorization", apiKey); // Include API key directly without "Bearer" prefix
-		Gson gson = new Gson();
-
-		String requestBodyJson = gson.toJson(dto);
-
-		HttpEntity<String> request1 = new HttpEntity(requestBodyJson, headers);
-
 		ApiLog apiLog = new ApiLog();
-		apiLog.setUrl(requestUrl);
-		apiLog.setRequestBody(requestBodyJson);
-
+		String response1 = null;
 		try {
-			String response1 = restTemplate.postForObject(APIURL, request1, String.class);
+			String APIURL = config.getVerificationApiURl();
+
+			String requestUrl = request.getRequestURI().toString();
+
+			dto.getFileNumber();
+			dto.getDob();
+			dto.getName();
+			HttpHeaders headers = new HttpHeaders();
+			headers.setContentType(MediaType.APPLICATION_JSON);
+			headers.set("Authorization", apiKey);
+
+			Gson gson = new Gson();
+
+			String requestBodyJson = gson.toJson(dto);
+
+			HttpEntity<String> request1 = new HttpEntity(requestBodyJson, headers);
+
+			apiLog.setUrl(requestUrl);
+			apiLog.setRequestBody(requestBodyJson);
+
+			response1 = restTemplate.postForObject(APIURL, request1, String.class);
 			apiLog.setResponseBody(response1);
 			apiLog.setStatusCode(HttpStatus.OK.value());
 			return response1;
-		} catch (HttpClientErrorException.BadRequest e) {
-			String errorMessage = e.getResponseBodyAsString();
+		} catch (HttpClientErrorException.TooManyRequests e) {
+			// Handling Too Many Requests Exception specifically
+			apiLog.setStatusCode(HttpStatus.TOO_MANY_REQUESTS.value());
 
-			apiLog.setResponseBody(errorMessage);
+			response1 = e.getResponseBodyAsString();
+			System.out.println(response1 + "Response");
+			apiLog.setResponseBodyAsJson("API rate limit exceeded");
+		} catch (HttpClientErrorException.Unauthorized e) {
+			// Handling Unauthorized Exception specifically
+			apiLog.setStatusCode(HttpStatus.UNAUTHORIZED.value());
+
+			response1 = e.getResponseBodyAsString();
+			System.out.println(response1 + "Response");
+			apiLog.setResponseBodyAsJson("No API key found in request");
+
+		}
+
+		catch (HttpClientErrorException e) {
 			apiLog.setStatusCode(e.getStatusCode().value());
-			// System.out.println("Error Response: " + errorMessage);
-			logger.error("Error Response: {}", errorMessage);
-			if (errorMessage.contains("fileNumber is not allowed to be empty string")) {
-				throw new EmptyfileNumberrexception("fileNumber is not allowed to be empty string");
-			} else if (errorMessage.contains("dob is not allowed to be empty string")) {
-				throw new EmptyDobException("dob is not allowed to be empty string");
-			} else if (errorMessage.contains("Invalid File Number")) {
-				throw new InvalidFilenumberException("Invalid File Number");
-			} else if (errorMessage.contains("fileNumber is required")) {
-				throw new FilenumberRequiredException("fileNumber is required");
-			} else if (errorMessage.contains("name is not allowed to be empty string")) {
-				throw new EmptyNameException("name is not allowed to be empty string");
-			} else if (errorMessage.contains("Invalid Name")) {
-				throw new InvalidNameException("Invalid Name");
-			} else if (errorMessage.contains("Invalid dob")) {
-				throw new InvalidDobException("Invalid dob");
-			}
 
-			else {
-				throw e;
-			}
-		} catch (HttpClientErrorException.NotFound e) {
+			response1 = e.getResponseBodyAsString();
+			System.out.println(response1 + " Response ");
+			apiLog.setResponseBody(response1);
+		}
 
-			String errorMessage = e.getResponseBodyAsString();
+		catch (Exception e) {
+			apiLog.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value());
 
-			apiLog.setResponseBody(errorMessage);
-			apiLog.setStatusCode(e.getStatusCode().value());
-			logger.error("Error Response : {}", errorMessage);
-			if (errorMessage.contains("fileNumber is not found")) {
-				throw new filenumbernotfoundexception("fileNumber is not found");
-			} else {
-				throw e;
-			}
+			response1 = e.getMessage();
+			apiLog.setResponseBody(response1);
 		} finally {
 			apiLogRepository.save(apiLog);
 		}
+		return response1;
 
 	}
 
 	@Override
 	public String getDetails(pasportdto pasportdto, HttpServletRequest request, HttpServletResponse response) {
-		String APIURL = config.getPportApiURl();
-
-		String requestUrl = request.getRequestURI().toString();
-
-		int statusCode = response.getStatus();
-
-		pasportdto.getFileNumber();
-		pasportdto.getDob();
-		HttpHeaders headers = new HttpHeaders();
-		headers.setContentType(MediaType.APPLICATION_JSON);
-		headers.set("Authorization", apiKey);
-
-		Gson gson = new Gson();
-
-		String requestBodyJson = gson.toJson(pasportdto);
-
-		HttpEntity<String> request1 = new HttpEntity(requestBodyJson, headers);
 
 		ApiLogentity apiLogentity = new ApiLogentity();
-		apiLogentity.setUrl(requestUrl);
-		apiLogentity.setRequestBody(requestBodyJson);
-
+		String response1 = null;
 		try {
-			String response1 = restTemplate.postForObject(APIURL, request1, String.class);
+			String APIURL = config.getPportApiURl();
+
+			String requestUrl = request.getRequestURI().toString();
+
+			pasportdto.getFileNumber();
+			pasportdto.getDob();
+			HttpHeaders headers = new HttpHeaders();
+			headers.setContentType(MediaType.APPLICATION_JSON);
+			headers.set("Authorization", apiKey);
+
+			Gson gson = new Gson();
+
+			String requestBodyJson = gson.toJson(pasportdto);
+
+			HttpEntity<String> request1 = new HttpEntity(requestBodyJson, headers);
+
+			apiLogentity.setUrl(requestUrl);
+			apiLogentity.setRequestBody(requestBodyJson);
+
+			response1 = restTemplate.postForObject(APIURL, request1, String.class);
 			apiLogentity.setResponseBody(response1);
 			apiLogentity.setStatusCode(HttpStatus.OK.value());
 			return response1;
-		} catch (HttpClientErrorException.BadRequest e) {
-			String errorMessage = e.getResponseBodyAsString();
+		} catch (HttpClientErrorException.TooManyRequests e) {
+			// Handling Too Many Requests Exception specifically
+			apiLogentity.setStatusCode(HttpStatus.TOO_MANY_REQUESTS.value());
 
-			apiLogentity.setResponseBody(errorMessage);
+			response1 = e.getResponseBodyAsString();
+			System.out.println(response1 + "Response");
+			apiLogentity.setResponseBodyAsJson("API rate limit exceeded");
+		} catch (HttpClientErrorException.Unauthorized e) {
+			// Handling Unauthorized Exception specifically
+			apiLogentity.setStatusCode(HttpStatus.UNAUTHORIZED.value());
+
+			response1 = e.getResponseBodyAsString();
+			System.out.println(response1 + "Response");
+			apiLogentity.setResponseBodyAsJson("No API key found in request");
+
+		}
+
+		catch (HttpClientErrorException e) {
 			apiLogentity.setStatusCode(e.getStatusCode().value());
-			logger.error("Error Response:{}", errorMessage);
 
-			if (errorMessage.contains("fileNumber is not allowed to be empty string")) {
-				throw new Emptyfilenumberexception("fileNumber is not allowed to be empty string");
-			} else if (errorMessage.contains("dob is not allowed to be empty string")) {
+			response1 = e.getResponseBodyAsString();
+			System.out.println(response1 + " Response ");
+			apiLogentity.setResponseBody(response1);
+		}
 
-				throw new Emptydobexception("dob is not allowed to be empty string");
-			} else if (errorMessage.contains("Invalid File Number")) {
-				throw new Filenumberrequiredexception("Invalid File Number");
-			} else if (errorMessage.contains("Invalid dob")) {
-				throw new InvalidDOBexception("Invalid dob");
-			} else if (pasportdto.getFileNumber() == null || pasportdto.getFileNumber().isEmpty()) {
-				throw new BadRequestException("fileNumber is required");
-			} else {
-				throw e;
-			}
+		catch (Exception e) {
+			apiLogentity.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value());
 
-		} catch (HttpClientErrorException.NotFound e) {
-			String errorMessage = e.getResponseBodyAsString();
-			apiLogentity.setResponseBody(errorMessage);
-			apiLogentity.setStatusCode(e.getStatusCode().value());
-			logger.error("Error Response : {}", errorMessage);
-			if (errorMessage.contains("fileNumber is not found")) {
-				throw new filenotfoundexception("fileNumber is not found");
-			} else {
-				throw e;
-			}
-		} finally {
+			response1 = e.getMessage();
+			apiLogentity.setResponseBody(response1);
+		}
+
+		finally {
 
 			apiLogRepository1.save(apiLogentity);
 		}
+		return response1;
 
 	}
 
